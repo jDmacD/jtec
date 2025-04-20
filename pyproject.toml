@@ -1,0 +1,25 @@
+[project]
+name = "jtec"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "jDmacD", email = "jmacdoo@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "click>=8.1.8",
+    "kubernetes>=32.0.1",
+]
+
+[project.scripts]
+jtec = "jtec:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+]
