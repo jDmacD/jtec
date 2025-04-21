@@ -84,6 +84,7 @@ def generate_headers(annotations, header):
 
     return headers
 
+
 @click.command("gatus", short_help="creates gatus configuration")
 @click.option(
     "--output",
@@ -147,8 +148,10 @@ def main(output, kubeconfig, interval, status_code, response_time, header):
             if not clean_hostname:
                 continue
 
+            path = annotations.get("gatus.io/path", "")
+
             # Generate URL
-            url = f"https://{clean_hostname}"
+            url = f"https://{clean_hostname}{path}"
 
             # Create endpoint name using the HTTPRoute name
             # If there is more than one hostname they are numbered
@@ -161,7 +164,7 @@ def main(output, kubeconfig, interval, status_code, response_time, header):
                 group=parent_ref_name,
                 interval=annotations.get("gatus.io/interval", interval),
                 conditions=generate_conditions(annotations, status_code, response_time),
-                headers=generate_headers(annotations, header)
+                headers=generate_headers(annotations, header),
             )
             endpoints.append(endpoint.to_dict())
 
