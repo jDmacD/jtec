@@ -108,7 +108,7 @@ def generate_headers(annotations, header):
 )
 @click.option(
     "--response-time",
-    default="1000",
+    default="5000",
     help="Default maximum response time in ms",
     envvar="DEFAULT_RESPONSE_TIME",
 )
