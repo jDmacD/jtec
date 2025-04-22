@@ -23,12 +23,12 @@ class HeaderParamType(click.ParamType):
 HEADER_TYPE = HeaderParamType()
 
 
-def get_ingresses(kubeconfig):
+def get_ingresses(kubeconfig, context):
     if kubeconfig:
-        config.load_kube_config(config_file=kubeconfig)
+        config.load_kube_config(config_file=kubeconfig, context=context)
     else:
         try:
-            config.load_kube_config()
+            config.load_kube_config(context=context)
         except config.config_exception.ConfigException:
             config.load_incluster_config()
 
@@ -84,12 +84,12 @@ def process_ingresses(
                 endpoints.append(endpoint.to_dict())
 
 
-def get_httproutes(kubeconfig):
+def get_httproutes(kubeconfig, context):
     if kubeconfig:
-        config.load_kube_config(config_file=kubeconfig)
+        config.load_kube_config(config_file=kubeconfig, context=context)
     else:
         try:
-            config.load_kube_config()
+            config.load_kube_config(context=context)
         except config.config_exception.ConfigException:
             config.load_incluster_config()
 
@@ -194,7 +194,7 @@ def generate_headers(annotations, header):
     return headers
 
 
-@click.command("gatus", short_help="creates gatus configuration")
+@click.command("gatus", short_help="creates a gatus configuration")
 @click.option(
     "--output",
     "-o",
@@ -203,6 +203,7 @@ def generate_headers(annotations, header):
     envvar="OUTPUT_FILE",
 )
 @click.option("--kubeconfig", help="Path to kubeconfig file", envvar="KUBECONFIG")
+@click.option("--context", help="Kubernetes context to use", envvar="KUBE_CONTEXT")
 @click.option(
     "--interval",
     default="5m",
@@ -244,6 +245,7 @@ def generate_headers(annotations, header):
 def main(
     output,
     kubeconfig,
+    context,
     interval,
     status_code,
     response_time,
@@ -254,13 +256,13 @@ def main(
     endpoints = []
 
     if include_httproute:
-        httproutes = get_httproutes(kubeconfig)
+        httproutes = get_httproutes(kubeconfig, context)
         process_httproutes(
             httproutes, endpoints, interval, status_code, response_time, header
         )
 
     if include_ingress:
-        ingresses = get_ingresses(kubeconfig)
+        ingresses = get_ingresses(kubeconfig, context)
         process_ingresses(
             ingresses, endpoints, interval, status_code, response_time, header
         )
