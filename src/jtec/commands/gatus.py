@@ -15,7 +15,7 @@ class HeaderParamType(click.ParamType):
             )
         key, val = value.split("=", 1)
         if not key:
-            self.fail(f"Header key cannot be empty", param, ctx)
+            self.fail("Header key cannot be empty", param, ctx)
         return (key, val)
 
 
@@ -28,7 +28,7 @@ def get_ingresses(kubeconfig):
     else:
         try:
             config.load_kube_config()
-        except:
+        except config.config_exception.ConfigException:
             config.load_incluster_config()
 
     # Initialize the networking API client
@@ -66,7 +66,7 @@ def process_ingresses(
 
                 # Create endpoint name
                 endpoint_name = (
-                    f"{name}" if len(ingress.spec.rules) == 1 else f"{name}[{i+1}]"
+                    f"{name}" if len(ingress.spec.rules) == 1 else f"{name}[{i + 1}]"
                 )
 
                 endpoint = Endpoint(
@@ -89,7 +89,7 @@ def get_httproutes(kubeconfig):
     else:
         try:
             config.load_kube_config()
-        except:
+        except config.config_exception.ConfigException:
             config.load_incluster_config()
 
     # Initialize the custom API client for gateway API
@@ -138,7 +138,7 @@ def process_httproutes(
 
             # Create endpoint name using the HTTPRoute name
             # If there is more than one hostname they are numbered
-            endpoint_name = name if len(hostnames) == 1 else f"{name}[{i+1}]"
+            endpoint_name = name if len(hostnames) == 1 else f"{name}[{i + 1}]"
 
             endpoint = Endpoint(
                 name=endpoint_name,
@@ -180,7 +180,6 @@ def generate_conditions(annotations, status_code, response_time):
 
 
 def generate_headers(annotations, header):
-
     headers = {}
     if header:
         for key, value in header:
