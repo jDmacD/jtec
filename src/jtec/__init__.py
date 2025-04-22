@@ -1,6 +1,6 @@
 import click
 
-from jtec.commands import gatus
+from jtec.commands.gatus import gatus
 
 
 @click.group()

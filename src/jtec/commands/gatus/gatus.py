@@ -1,7 +1,7 @@
 import click
 import yaml
 from kubernetes import client, config
-from ..classes.endpoint import Endpoint
+from .endpoint import Endpoint
 
 
 # Define a custom class for handling headers in key=value format
