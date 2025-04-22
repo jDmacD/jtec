@@ -34,9 +34,6 @@
     }:
     let
       inherit (nixpkgs) lib;
-
-      # Load a uv workspace from a workspace root.
-      # Uv2nix treats all uv projects as workspace projects.
       workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
 
       # Create package overlay from workspace.
@@ -48,11 +45,7 @@
         # };
       };
 
-      pyprojectOverrides = _final: _prev: {
-        # Implement build fixups here.
-        # Note that uv2nix is _not_ using Nixpkgs buildPythonPackage.
-        # It's using https://pyproject-nix.github.io/pyproject.nix/build.html
-      };
+      pyprojectOverrides = _final: _prev: {};
 
       # This example is only using x86_64-linux
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
@@ -89,7 +82,7 @@
         };
       };
 
-      buildImage = pkgs.dockerTools.buildLayeredImage {
+      dockerImage = pkgs.dockerTools.buildLayeredImage {
         name = "jtec";
         contents = [ ];
         config = {
@@ -100,40 +93,8 @@
         };
       };
 
-      # This example provides two different modes of development:
-      # - Impurely using uv to manage virtual environments
-      # - Pure development using uv2nix to manage virtual environments
       devShells.x86_64-linux = {
-        # It is of course perfectly OK to keep using an impure virtualenv workflow and only use uv2nix to build packages.
-        # This devShell simply adds Python and undoes the dependency leakage done by Nixpkgs Python infrastructure.
-        impure = pkgs.mkShell {
-          packages = [
-            python
-            pkgs.uv
-          ];
-          env =
-            {
-              # Prevent uv from managing Python downloads
-              UV_PYTHON_DOWNLOADS = "never";
-              # Force uv to use nixpkgs Python interpreter
-              UV_PYTHON = python.interpreter;
-            }
-            // lib.optionalAttrs pkgs.stdenv.isLinux {
-              # Python libraries often load native shared objects using dlopen(3).
-              # Setting LD_LIBRARY_PATH makes the dynamic library loader aware of libraries without using RPATH for lookup.
-              LD_LIBRARY_PATH = lib.makeLibraryPath pkgs.pythonManylinuxPackages.manylinux1;
-            };
-          shellHook = ''
-            unset PYTHONPATH
-          '';
-        };
 
-        # This devShell uses uv2nix to construct a virtual environment purely from Nix, using the same dependency specification as the application.
-        # The notable difference is that we also apply another overlay here enabling editable mode ( https://setuptools.pypa.io/en/latest/userguide/development_mode.html ).
-        #
-        # This means that any changes done to your local files do not require a rebuild.
-        #
-        # Note: Editable package support is still unstable and subject to change.
         uv2nix =
           let
             # Create an overlay enabling editable mode for all local dependencies.
@@ -162,13 +123,6 @@
                         (old.src + "/src/jtec/__init__.py")
                       ];
                     };
-
-                    # Hatchling (our build system) has a dependency on the `editables` package when building editables.
-                    #
-                    # In normal Python flows this dependency is dynamically handled, and doesn't need to be explicitly declared.
-                    # This behaviour is documented in PEP-660.
-                    #
-                    # With Nix the dependency needs to be explicitly declared.
                     nativeBuildInputs =
                       old.nativeBuildInputs
                       ++ final.resolveBuildSystem {
@@ -179,10 +133,6 @@
                 })
               ]
             );
-
-            # Build virtual environment, with local packages being editable.
-            #
-            # Enable all optional dependencies for development.
             virtualenv = editablePythonSet.mkVirtualEnv "jtec-dev-env" workspace.deps.all;
 
           in
