@@ -22,6 +22,67 @@ class HeaderParamType(click.ParamType):
 HEADER_TYPE = HeaderParamType()
 
 
+def get_ingresses(kubeconfig):
+    if kubeconfig:
+        config.load_kube_config(config_file=kubeconfig)
+    else:
+        try:
+            config.load_kube_config()
+        except:
+            config.load_incluster_config()
+
+    # Initialize the networking API client
+    v1 = client.NetworkingV1Api()
+
+    # Get all Ingresses from all namespaces
+    ingresses = v1.list_ingress_for_all_namespaces()
+
+    return ingresses
+
+
+def process_ingresses(
+    ingresses, endpoints, interval, status_code, response_time, header
+):
+    # Process each Ingress
+    for ingress in ingresses.items:
+        name = ingress.metadata.name
+        namespace = ingress.metadata.namespace
+
+        click.echo(f"found ingress {namespace}/{name}")
+
+        # Get annotations
+        annotations = ingress.metadata.annotations or {}
+
+        # Process each rule
+        if ingress.spec.rules:
+            for i, rule in enumerate(ingress.spec.rules):
+                if not rule.host:
+                    continue
+
+                path = annotations.get("gatus.io/path", "")
+
+                # Generate URL
+                url = f"https://{rule.host}{path}"
+
+                # Create endpoint name
+                endpoint_name = (
+                    f"{name}" if len(ingress.spec.rules) == 1 else f"{name}[{i+1}]"
+                )
+
+                endpoint = Endpoint(
+                    name=endpoint_name,
+                    url=url,
+                    enabled=annotations.get("gatus.io/enabled", True),
+                    group=namespace,
+                    interval=annotations.get("gatus.io/interval", interval),
+                    conditions=generate_conditions(
+                        annotations, status_code, response_time
+                    ),
+                    headers=generate_headers(annotations, header),
+                )
+                endpoints.append(endpoint.to_dict())
+
+
 def get_httproutes(kubeconfig):
     if kubeconfig:
         config.load_kube_config(config_file=kubeconfig)
@@ -41,6 +102,54 @@ def get_httproutes(kubeconfig):
     )
 
     return httproutes
+
+
+def process_httproutes(
+    httproutes, endpoints, interval, status_code, response_time, header
+):
+    # Process each HTTPRoute
+    for route in httproutes.get("items", []):
+        name = route["metadata"]["name"]
+        hostnames = route["spec"].get("hostnames", [])
+
+        click.echo(f"found httproute {name}")
+
+        # Skip if no hostnames
+        if not hostnames:
+            continue
+
+        # Get parent ref name (gateway)
+        parent_refs = route["spec"].get("parentRefs", [])
+        parent_ref_name = parent_refs[0]["name"] if parent_refs else "default-gateway"
+
+        # Get annotations
+        annotations = route["metadata"].get("annotations", {})
+
+        for i, hostname in enumerate(hostnames):
+            # Clean hostname
+            clean_hostname = hostname.strip()
+            if not clean_hostname:
+                continue
+
+            path = annotations.get("gatus.io/path", "")
+
+            # Generate URL
+            url = f"https://{clean_hostname}{path}"
+
+            # Create endpoint name using the HTTPRoute name
+            # If there is more than one hostname they are numbered
+            endpoint_name = name if len(hostnames) == 1 else f"{name}[{i+1}]"
+
+            endpoint = Endpoint(
+                name=endpoint_name,
+                url=url,
+                enabled=annotations.get("gatus.io/enabled", True),
+                group=parent_ref_name,
+                interval=annotations.get("gatus.io/interval", interval),
+                conditions=generate_conditions(annotations, status_code, response_time),
+                headers=generate_headers(annotations, header),
+            )
+            endpoints.append(endpoint.to_dict())
 
 
 def generate_conditions(annotations, status_code, response_time):
@@ -120,53 +229,41 @@ def generate_headers(annotations, header):
     help='Custom header in format "Key=Value" or "Key=$ENV_VAR" (can be used multiple times)',
     envvar="DEFAULT_HEADERS",
 )
-def main(output, kubeconfig, interval, status_code, response_time, header):
-
+@click.option(
+    "--include-ingress/--no-include-ingress",
+    default=True,
+    help="Include Ingress resources in the configuration",
+    envvar="INCLUDE_INGRESS",
+)
+@click.option(
+    "--include-httproute/--no-include-httproute",
+    default=True,
+    help="Include HTTPRoute resources in the configuration",
+    envvar="INCLUDE_HTTPROUTE",
+)
+def main(
+    output,
+    kubeconfig,
+    interval,
+    status_code,
+    response_time,
+    header,
+    include_ingress,
+    include_httproute,
+):
     endpoints = []
-    httproutes = get_httproutes(kubeconfig)
-    # Process each HTTPRoute
-    for route in httproutes.get("items", []):
-        name = route["metadata"]["name"]
-        hostnames = route["spec"].get("hostnames", [])
 
-        click.echo(f"found httproute {name}")
+    if include_httproute:
+        httproutes = get_httproutes(kubeconfig)
+        process_httproutes(
+            httproutes, endpoints, interval, status_code, response_time, header
+        )
 
-        # Skip if no hostnames
-        if not hostnames:
-            continue
-
-        # Get parent ref name (gateway)
-        parent_refs = route["spec"].get("parentRefs", [])
-        parent_ref_name = parent_refs[0]["name"] if parent_refs else "default-gateway"
-
-        # Get annotations
-        annotations = route["metadata"].get("annotations", {})
-
-        for i, hostname in enumerate(hostnames):
-            # Clean hostname
-            clean_hostname = hostname.strip()
-            if not clean_hostname:
-                continue
-
-            path = annotations.get("gatus.io/path", "")
-
-            # Generate URL
-            url = f"https://{clean_hostname}{path}"
-
-            # Create endpoint name using the HTTPRoute name
-            # If there is more than one hostname they are numbered
-            endpoint_name = name if len(hostnames) == 1 else f"{name}[{i+1}]"
-
-            endpoint = Endpoint(
-                name=endpoint_name,
-                url=url,
-                enabled=annotations.get("gatus.io/enabled", True),
-                group=parent_ref_name,
-                interval=annotations.get("gatus.io/interval", interval),
-                conditions=generate_conditions(annotations, status_code, response_time),
-                headers=generate_headers(annotations, header),
-            )
-            endpoints.append(endpoint.to_dict())
+    if include_ingress:
+        ingresses = get_ingresses(kubeconfig)
+        process_ingresses(
+            ingresses, endpoints, interval, status_code, response_time, header
+        )
 
     # Create the final output
     output_data = {"endpoints": endpoints}
