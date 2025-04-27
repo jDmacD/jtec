@@ -62,7 +62,11 @@
     in {
       formatter = nixpkgs.legacyPackages.${system}.alejandra;
       packages = {
-        default = pythonSet.mkVirtualEnv "jtec-env" workspace.deps.default;
+        default = pkgs.writeShellScriptBin "jtec" ''
+          exec ${self.packages.${system}.jtec-env}/bin/jtec "$@"
+        '';
+        # Keep the full env as a separate package
+        jtec-env = pythonSet.mkVirtualEnv "jtec-env" workspace.deps.default;
 
         dockerImage = pkgs.dockerTools.buildLayeredImage {
           name = "jtec";
@@ -77,7 +81,6 @@
           };
         };
       };
-
       apps.default = {
         type = "app";
         program = "${self.packages.${system}.default}/bin/jtec";
