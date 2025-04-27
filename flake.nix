@@ -79,9 +79,16 @@
       # Package a virtual environment as our main application.
       #
       # Enable no optional dependencies for production build.
-      packages.x86_64-linux.default = pythonSet.mkVirtualEnv "jtec-env" workspace.deps.default;
+      packages.x86_64-linux = {
+        default = pkgs.writeShellScriptBin "jtec" ''
+          exec ${self.packages.x86_64-linux.jtec-env}/bin/jtec "$@"
+        '';
+        
+        # Keep the full env as a separate package
+        jtec-env = pythonSet.mkVirtualEnv "jtec-env" workspace.deps.default;
+      };
 
-      # Make jtec runnable with `nix run`
+      # Update the apps section to use the new default package
       apps.x86_64-linux = {
         default = {
           type = "app";
