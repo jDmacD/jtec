@@ -35,6 +35,7 @@
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       inherit (nixpkgs) lib;
+      inherit (pkgs.callPackages pyproject-nix.build.util {}) mkApplication;
       workspace = uv2nix.lib.workspace.loadWorkspace {workspaceRoot = ./.;};
 
       # Create package overlay from workspace.
@@ -62,9 +63,10 @@
     in {
       formatter = nixpkgs.legacyPackages.${system}.alejandra;
       packages = {
-        default = pkgs.writeShellScriptBin "jtec" ''
-          exec ${self.packages.${system}.jtec-env}/bin/jtec "$@"
-        '';
+        default = mkApplication {
+          venv = pythonSet.mkVirtualEnv "jtec-env" workspace.deps.default;
+          package = pythonSet.jtex;
+        };
         # Keep the full env as a separate package
         jtec-env = pythonSet.mkVirtualEnv "jtec-env" workspace.deps.default;
 
