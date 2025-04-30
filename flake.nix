@@ -65,7 +65,7 @@
       packages = {
         default = mkApplication {
           venv = pythonSet.mkVirtualEnv "jtec-env" workspace.deps.default;
-          package = pythonSet.jtex;
+          package = pythonSet.jtec;
         };
         # Keep the full env as a separate package
         jtec-env = pythonSet.mkVirtualEnv "jtec-env" workspace.deps.default;
