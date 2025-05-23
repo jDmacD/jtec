@@ -42,7 +42,7 @@ def get_ingresses(kubeconfig, context):
 
 
 def process_ingresses(
-    ingresses, endpoints, interval, status_code, response_time, header
+    ingresses, endpoints, interval, status_code, response_time, header, group=None
 ):
     # Process each Ingress
     for ingress in ingresses.items:
@@ -74,7 +74,8 @@ def process_ingresses(
                     name=endpoint_name,
                     url=url,
                     enabled=annotations.get("gatus.io/enabled", True),
-                    group=namespace,
+                    # Use group if provided, otherwise use namespace
+                    group=group if group is not None else namespace,
                     interval=annotations.get("gatus.io/interval", interval),
                     conditions=generate_conditions(
                         annotations, status_code, response_time
@@ -106,7 +107,7 @@ def get_httproutes(kubeconfig, context):
 
 
 def process_httproutes(
-    httproutes, endpoints, interval, status_code, response_time, header
+    httproutes, endpoints, interval, status_code, response_time, header, group=None
 ):
     # Process each HTTPRoute
     for route in httproutes.get("items", []):
@@ -145,7 +146,8 @@ def process_httproutes(
                 name=endpoint_name,
                 url=url,
                 enabled=annotations.get("gatus.io/enabled", True),
-                group=parent_ref_name,
+                # Use group if provided, otherwise use parent_ref_name
+                group=group if group is not None else parent_ref_name,
                 interval=annotations.get("gatus.io/interval", interval),
                 conditions=generate_conditions(annotations, status_code, response_time),
                 headers=generate_headers(annotations, header),
@@ -242,6 +244,7 @@ def generate_headers(annotations, header):
     help="Include HTTPRoute resources in the configuration",
     envvar="INCLUDE_HTTPROUTE",
 )
+@click.option('--group', required=False, help='Optional group name for all endpoints')
 def main(
     output,
     kubeconfig,
@@ -252,19 +255,20 @@ def main(
     header,
     include_ingress,
     include_httproute,
+    group
 ):
     endpoints = []
 
     if include_httproute:
         httproutes = get_httproutes(kubeconfig, context)
         process_httproutes(
-            httproutes, endpoints, interval, status_code, response_time, header
+            httproutes, endpoints, interval, status_code, response_time, header, group
         )
 
     if include_ingress:
         ingresses = get_ingresses(kubeconfig, context)
         process_ingresses(
-            ingresses, endpoints, interval, status_code, response_time, header
+            ingresses, endpoints, interval, status_code, response_time, header, group
         )
 
     # Create the final output
