@@ -65,10 +65,11 @@ def process_ingresses(
                 # Generate URL
                 url = f"https://{rule.host}{path}"
 
-                # Create endpoint name
-                endpoint_name = (
-                    f"{name}" if len(ingress.spec.rules) == 1 else f"{name}[{i + 1}]"
-                )
+                # Get endpoint name from annotation or fallback to ingress name
+                endpoint_name = annotations.get("gatus.io/name", name)
+                # Only append index if using fallback name and multiple rules exist
+                if endpoint_name == name and len(ingress.spec.rules) > 1:
+                    endpoint_name = f"{endpoint_name}[{i + 1}]"
 
                 endpoint = Endpoint(
                     name=endpoint_name,
@@ -138,9 +139,11 @@ def process_httproutes(
             # Generate URL
             url = f"https://{clean_hostname}{path}"
 
-            # Create endpoint name using the HTTPRoute name
-            # If there is more than one hostname they are numbered
-            endpoint_name = name if len(hostnames) == 1 else f"{name}[{i + 1}]"
+            # Get endpoint name from annotation or fallback to route name
+            endpoint_name = annotations.get("gatus.io/name", name)
+            # Only append index if using fallback name and multiple hostnames exist
+            if endpoint_name == name and len(hostnames) > 1:
+                endpoint_name = f"{endpoint_name}[{i + 1}]"
 
             endpoint = Endpoint(
                 name=endpoint_name,
@@ -195,6 +198,22 @@ def generate_headers(annotations, header):
 
     return headers
 
+def validate_unique_names(endpoints):
+    """Validate that there are no duplicate endpoint names within the same group."""
+    # Create a dictionary to store name-group combinations
+    seen = {}
+    
+    for endpoint in endpoints:
+        key = (endpoint['name'], endpoint['group'])
+        if key in seen:
+            # If we find a duplicate, raise an error with details
+            raise click.ClickException(
+                f"Duplicate endpoint name '{endpoint['name']}' found in group '{endpoint['group']}'. "
+                f"Each endpoint name must be unique within its group.\n"
+                f"First occurrence URL: {seen[key]}\n"
+                f"Duplicate URL: {endpoint['url']}"
+            )
+        seen[key] = endpoint['url']
 
 @click.command("gatus", short_help="creates a gatus configuration")
 @click.option(
@@ -270,6 +289,13 @@ def main(
         process_ingresses(
             ingresses, endpoints, interval, status_code, response_time, header, group
         )
+
+    try:
+        # Validate endpoints before writing to file
+        validate_unique_names(endpoints)
+    except click.ClickException as e:
+        # ClickException will be caught by Click and displayed appropriately
+        raise
 
     # Create the final output
     output_data = {"endpoints": endpoints}
