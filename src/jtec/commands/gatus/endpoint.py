@@ -67,7 +67,7 @@ class Endpoint:
 
     def to_dict(self):
         """Convert the endpoint object to a dictionary"""
-        return {
+        result  = {
             "name": self.name,
             "url": self.url,
             "enabled": self.enabled,
@@ -80,8 +80,13 @@ class Endpoint:
             "headers": self.headers,
             # "dns": self.dns,
             # "ssh": self.ssh,
-            # "alerts": self.alerts,
+            "alerts": self.alerts,
             # "maintenance_windows": self.maintenance_windows,
             # "client": self.client,
             # "ui": self.ui,
         }
+        # Only include alerts if they exist
+        if self.alerts:
+             result["alerts"] = list(self.alerts)
+            
+        return result
